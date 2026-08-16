@@ -1,0 +1,265 @@
+-- ==========================================================
+-- BLOX FRUITS: FIX LAG + CENTER FPS TOGGLE + MINI BUTTONS
+-- ==========================================================
+
+local SAVE_FILE_NAME = "BloxFruits_BlackScreen_Save.txt"
+
+-- 1. CÁC DỊCH VỤ CẦN THIẾT
+local CoreGui = game:GetService("CoreGui")
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local Lighting = game:GetService("Lighting")
+local LocalPlayer = Players.LocalPlayer or Players.PlayerAdded:Wait()
+
+local parentGui = LocalPlayer:WaitForChild("PlayerGui")
+if gethui then
+    pcall(function() parentGui = gethui() end)
+elseif CoreGui then
+    pcall(function() parentGui = CoreGui end)
+end
+
+-- 2. KHÓA FPS & HẠ ĐỒ HỌA
+if setfpscap then setfpscap(900) end
+pcall(function() settings().Rendering.QualityLevel = Enum.QualityLevel.Level01 end)
+
+-- 3. BẦU TRỜI XÁM & TẮT ÁNH SÁNG
+pcall(function()
+    Lighting:ClearAllChildren()
+    Lighting.GlobalShadows = false
+    Lighting.Brightness = 0
+    Lighting.ClockTime = 12
+    Lighting.FogEnd = 100000
+    Lighting.OutdoorAmbient = Color3.fromRGB(120, 120, 120)
+    Lighting.Ambient = Color3.fromRGB(120, 120, 120)
+end)
+
+-- 4. TẠO MÀN HÌNH ĐEN & ĐỌC FILE LƯU
+local isBlack = false
+pcall(function()
+    if isfile and readfile and isfile(SAVE_FILE_NAME) then
+        if readfile(SAVE_FILE_NAME) == "true" then
+            isBlack = true
+        end
+    end
+end)
+
+if parentGui:FindFirstChild("BlackScreenOverlay") then
+    parentGui.BlackScreenOverlay:Destroy()
+end
+
+local blackScreenGui = Instance.new("ScreenGui")
+blackScreenGui.Name = "BlackScreenOverlay"
+blackScreenGui.ResetOnSpawn = false
+blackScreenGui.DisplayOrder = 1
+blackScreenGui.Enabled = isBlack
+blackScreenGui.Parent = parentGui
+
+local blackFrame = Instance.new("Frame")
+blackFrame.Size = UDim2.new(1, 0, 1, 0)
+blackFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+blackFrame.BorderSizePixel = 0
+blackFrame.Parent = blackScreenGui
+
+if isBlack then
+    task.spawn(function()
+        task.wait(0.5)
+        if set3drenderingenabled then
+            pcall(function() set3drenderingenabled(false) end)
+        elseif RunService.Set3dRenderingEnabled then
+            pcall(function() RunService:Set3dRenderingEnabled(false) end)
+        end
+    end)
+end
+
+-- 5. TẠO FPS DISPLAY Ở CHÍNH GIỮA MÀN HÌNH
+if parentGui:FindFirstChild("CenterFPSDisplayHUD") then
+    parentGui.CenterFPSDisplayHUD:Destroy()
+end
+
+local fpsDisplayGui = Instance.new("ScreenGui")
+fpsDisplayGui.Name = "CenterFPSDisplayHUD"
+fpsDisplayGui.ResetOnSpawn = false
+fpsDisplayGui.DisplayOrder = 200
+fpsDisplayGui.Enabled = true -- Mặc định bật khi load
+fpsDisplayGui.Parent = parentGui
+
+local centerFpsFrame = Instance.new("Frame")
+centerFpsFrame.Name = "FPSCenterContainer"
+centerFpsFrame.Size = UDim2.new(0, 160, 0, 50) -- Kích thước rộng rãi dễ nhìn
+centerFpsFrame.Position = UDim2.new(0.5, -80, 0.02, 0) -- Giữa màn hình phía trên
+centerFpsFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+centerFpsFrame.BackgroundTransparency = 0.2
+centerFpsFrame.Active = true
+centerFpsFrame.Draggable = true -- Có thể kéo di chuyển nếu vướng
+centerFpsFrame.Parent = fpsDisplayGui
+
+local centerFpsCorner = Instance.new("UICorner")
+centerFpsCorner.CornerRadius = UDim.new(0, 10)
+centerFpsCorner.Parent = centerFpsFrame
+
+local centerFpsStroke = Instance.new("UIStroke")
+centerFpsStroke.Color = Color3.fromRGB(0, 255, 127)
+centerFpsStroke.Thickness = 2
+centerFpsStroke.Parent = centerFpsFrame
+
+local centerFpsText = Instance.new("TextLabel")
+centerFpsText.Size = UDim2.new(1, 0, 1, 0)
+centerFpsText.BackgroundTransparency = 1
+centerFpsText.Text = "⚡ FPS: ..."
+centerFpsText.TextColor3 = Color3.fromRGB(0, 255, 127)
+centerFpsText.TextSize = 18 -- Chữ to rõ ràng
+centerFpsText.Font = Enum.Font.SourceSansBold
+centerFpsText.Parent = centerFpsFrame
+
+-- Logic cập nhật FPS real-time
+local lastUpdate = tick()
+local frameCount = 0
+RunService.RenderStepped:Connect(function()
+    frameCount = frameCount + 1
+    local now = tick()
+    if now - lastUpdate >= 1 then
+        local fps = math.floor(frameCount / (now - lastUpdate))
+        centerFpsText.Text = "⚡ FPS: " .. tostring(fps)
+        frameCount = 0
+        lastUpdate = now
+    end
+end)
+
+-- 6. TẠO MENU 2 NÚT BẤM BÊN PHẢI (150x40)
+local function CreateMiniButtons()
+    if parentGui:FindFirstChild("MiniControlHUD") then
+        parentGui.MiniControlHUD:Destroy()
+    end
+
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "MiniControlHUD"
+    screenGui.ResetOnSpawn = false
+    screenGui.DisplayOrder = 100
+    screenGui.Parent = parentGui
+
+    local container = Instance.new("Frame")
+    container.Name = "ButtonContainer"
+    container.Size = UDim2.new(0, 150, 0, 90)
+    container.Position = UDim2.new(1, -160, 0.4, 0) 
+    container.BackgroundTransparency = 1
+    container.Active = true
+    container.Draggable = true
+    container.Parent = screenGui
+
+    -- NÚT 1: BẬT/TẮT FPS DISPLAY (ĐẶT Ở TRÊN, 150x40)
+    local fpsToggleBtn = Instance.new("TextButton")
+    fpsToggleBtn.Size = UDim2.new(1, 0, 0, 40)
+    fpsToggleBtn.Position = UDim2.new(0, 0, 0, 0)
+    fpsToggleBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+    fpsToggleBtn.Text = "⚡ FPS: ON"
+    fpsToggleBtn.TextColor3 = Color3.fromRGB(0, 255, 127)
+    fpsToggleBtn.TextSize = 14
+    fpsToggleBtn.Font = Enum.Font.SourceSansBold
+    fpsToggleBtn.Parent = container
+
+    local corner1 = Instance.new("UICorner")
+    corner1.CornerRadius = UDim.new(0, 8)
+    corner1.Parent = fpsToggleBtn
+
+    local stroke1 = Instance.new("UIStroke")
+    stroke1.Color = Color3.fromRGB(0, 200, 100)
+    stroke1.Thickness = 1
+    stroke1.Parent = fpsToggleBtn
+
+    fpsToggleBtn.MouseButton1Click:Connect(function()
+        fpsDisplayGui.Enabled = not fpsDisplayGui.Enabled
+        if fpsDisplayGui.Enabled then
+            fpsToggleBtn.Text = "⚡ FPS: ON"
+            fpsToggleBtn.TextColor3 = Color3.fromRGB(0, 255, 127)
+            stroke1.Color = Color3.fromRGB(0, 200, 100)
+        else
+            fpsToggleBtn.Text = "⚡ FPS: OFF"
+            fpsToggleBtn.TextColor3 = Color3.fromRGB(180, 180, 180)
+            stroke1.Color = Color3.fromRGB(80, 80, 80)
+        end
+    end)
+
+    -- NÚT 2: BẬT/TẮT MÀN HÌNH ĐEN (ĐẶT Ở DƯỚI, 150x40)
+    local blackBtn = Instance.new("TextButton")
+    blackBtn.Size = UDim2.new(1, 0, 0, 40)
+    blackBtn.Position = UDim2.new(0, 0, 0, 50)
+    blackBtn.BackgroundColor3 = isBlack and Color3.fromRGB(180, 40, 40) or Color3.fromRGB(30, 30, 35)
+    blackBtn.Text = isBlack and "🖤 Màn Đen: ON" or "🖤 Màn Đen: OFF"
+    blackBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    blackBtn.TextSize = 14
+    blackBtn.Font = Enum.Font.SourceSansBold
+    blackBtn.Parent = container
+
+    local corner2 = Instance.new("UICorner")
+    corner2.CornerRadius = UDim.new(0, 8)
+    corner2.Parent = blackBtn
+
+    local stroke2 = Instance.new("UIStroke")
+    stroke2.Color = Color3.fromRGB(80, 80, 80)
+    stroke2.Thickness = 1
+    stroke2.Parent = blackBtn
+
+    blackBtn.MouseButton1Click:Connect(function()
+        isBlack = not isBlack
+        blackScreenGui.Enabled = isBlack
+
+        pcall(function()
+            if writefile then writefile(SAVE_FILE_NAME, tostring(isBlack)) end
+        end)
+
+        if isBlack then
+            blackBtn.Text = "🖤 Màn Đen: ON"
+            blackBtn.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
+        else
+            blackBtn.Text = "🖤 Màn Đen: OFF"
+            blackBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+        end
+
+        if set3drenderingenabled then
+            pcall(function() set3drenderingenabled(not isBlack) end)
+        elseif RunService.Set3dRenderingEnabled then
+            pcall(function() RunService:Set3dRenderingEnabled(not isBlack) end)
+        end
+    end)
+end
+
+task.spawn(CreateMiniButtons)
+
+-- 7. XÓA HIỆU ỨNG MAP & SKILL (GIÚP GIẢM LAG MẠNH)
+local function ClearEffectsAndItems(obj)
+    if obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam") or 
+       obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") or 
+       obj:IsA("Explosion") or obj:IsA("Highlight") or obj:IsA("Light") then
+        obj:Destroy()
+        return
+    end
+    if obj:IsA("Accessory") or obj:IsA("Accoutrement") or obj:IsA("Shirt") or obj:IsA("Pants") or obj:IsA("ShirtGraphic") then
+        obj:Destroy()
+        return
+    end
+    local nameLower = string.lower(obj.Name)
+    if nameLower:find("effect") or nameLower:find("particle") or nameLower:find("skill") or nameLower:find("vfx") then
+        if not obj:FindFirstAncestor("Enemies") and not obj:FindFirstAncestor("NPCs") then
+            obj:Destroy()
+            return
+        end
+    end
+end
+
+local function ProcessWorkspace(obj)
+    if obj:FindFirstAncestor("Enemies") or obj:FindFirstAncestor("NPCs") then return end
+    local nameLower = string.lower(obj.Name)
+    if nameLower:find("water") or nameLower:find("sea") or nameLower:find("ocean") then return end
+
+    ClearEffectsAndItems(obj)
+
+    if obj:IsA("BasePart") then
+        obj.Transparency = 1
+        obj.Material = Enum.Material.SmoothPlastic
+    end
+end
+
+for _, v in pairs(workspace:GetDescendants()) do pcall(function() ProcessWorkspace(v) end) end
+workspace.DescendantAdded:Connect(function(v) pcall(function() ProcessWorkspace(v) end) end)
+
+print("==== [ACTIVATED] MINI UI + CENTER FPS CONTROL LOADED ====")
