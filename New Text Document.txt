@@ -19,7 +19,7 @@ elseif CoreGui then
 end
 
 -- 2. KHÓA FPS & HẠ ĐỒ HỌA
-if setfpscap then setfpscap(900) end
+if setfpscap then setfpscap(30) end
 pcall(function() settings().Rendering.QualityLevel = Enum.QualityLevel.Level01 end)
 
 -- 3. BẦU TRỜI XÁM & TẮT ÁNH SÁNG
