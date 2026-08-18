@@ -1,27 +1,28 @@
 -- ==============================================================================
--- HỆ THỐNG TỐI ƯU HÓA HIỆU NĂNG & ẨN MAP (V3 - BẢN FIX UI & TỐI ƯU CPU)
+-- HỆ THỐNG TỐI ƯU HÓA HIỆU NĂNG - V4 (XÓA RAM & DRAGGABLE FPS)
 -- ==============================================================================
 
-if _G.OptimalScriptRun then return end
-_G.OptimalScriptRun = true
+if _G.OptimalScriptRunV4 then return end
+_G.OptimalScriptRunV4 = true
 
 local CoreGui = game:GetService("CoreGui")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 local Lighting = game:GetService("Lighting")
+local UserInputService = game:GetService("UserInputService")
 
 local Player = Players.LocalPlayer
 
--- Xác định nơi chứa UI an toàn nhất (Hỗ trợ mọi Executor)
+-- Xác định nơi chứa UI an toàn
 local guiTarget = pcall(function() return CoreGui.Name end) and CoreGui or Player:WaitForChild("PlayerGui")
 
 -- ==========================================================
--- PHẦN 1: KHỞI TẠO GIAO DIỆN (UI) NGAY LẬP TỨC
+-- PHẦN 1: TẠO GIAO DIỆN & NÚT BẤM (CHỐNG LỖI YIELD)
 -- ==========================================================
--- 1. Màn hình đen (Tạo trước để nằm dưới cùng)
+-- 1. Màn Đen Treo Máy
 local BlackScreenGui = Instance.new("ScreenGui")
-BlackScreenGui.Name = "PureBlackScreen"
+BlackScreenGui.Name = "PureBlackScreenV4"
 BlackScreenGui.DisplayOrder = 9998
 BlackScreenGui.IgnoreGuiInset = true
 BlackScreenGui.ResetOnSpawn = false
@@ -33,27 +34,26 @@ BlackFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 BlackFrame.Visible = false
 BlackFrame.Parent = BlackScreenGui
 
--- 2. Giao diện chứa 2 nút bấm
+-- 2. Giao Diện Điều Khiển (Bên Phải)
 local MainGui = Instance.new("ScreenGui")
-MainGui.Name = "OptimalFarmUI"
-MainGui.DisplayOrder = 9999 -- Nằm trên màn đen
+MainGui.Name = "OptimalFarmUIV4"
+MainGui.DisplayOrder = 9999
 MainGui.ResetOnSpawn = false
 MainGui.Parent = guiTarget
 
 local Container = Instance.new("Frame")
 Container.Size = UDim2.new(0, 120, 0, 90)
 Container.Position = UDim2.new(1, -15, 0.5, 0)
-Container.AnchorPoint = Vector2.new(1, 0.5) -- Neo cố định mép phải, giữa màn hình
+Container.AnchorPoint = Vector2.new(1, 0.5) 
 Container.BackgroundTransparency = 1
 Container.Parent = MainGui
 
 local Layout = Instance.new("UIListLayout")
 Layout.Parent = Container
 Layout.SortOrder = Enum.SortOrder.LayoutOrder
-Layout.Padding = UDim.new(0, 15) -- Khoảng cách giữa 2 nút
+Layout.Padding = UDim.new(0, 15)
 Layout.HorizontalAlignment = Enum.HorizontalAlignment.Right
 
--- Hàm tạo nút bấm
 local function CreateBtn(text)
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(0, 110, 0, 36)
@@ -62,9 +62,167 @@ local function CreateBtn(text)
     btn.Font = Enum.Font.GothamBold
     btn.TextSize = 13
     btn.Text = text
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+    local stroke = Instance.new("UIStroke", btn)
+    stroke.Color = Color3.fromRGB(80, 80, 80)
+    stroke.Thickness = 1.2
+    btn.Parent = Container
+    return btn
+end
+
+local BtnFPS = CreateBtn("FPS: OFF")
+local BtnBlack = CreateBtn("Màn Đen: OFF")
+
+-- ==========================================================
+-- PHẦN 2: BẢNG HIỂN THỊ FPS (GIỮA MÀN HÌNH & KÉO THẢ ĐƯỢC)
+-- ==========================================================
+local FPSFrame = Instance.new("Frame")
+FPSFrame.Size = UDim2.new(0, 110, 0, 35)
+FPSFrame.Position = UDim2.new(0.5, 0, 0.5, 0) -- Căn giữa màn hình
+FPSFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+FPSFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+FPSFrame.BackgroundTransparency = 0.3
+FPSFrame.Active = true -- Bắt buộc bật để có thể kéo thả
+FPSFrame.Visible = false
+FPSFrame.Parent = MainGui
+
+Instance.new("UICorner", FPSFrame).CornerRadius = UDim.new(0, 8)
+local FPSStroke = Instance.new("UIStroke", FPSFrame)
+FPSStroke.Color = Color3.fromRGB(0, 200, 0)
+FPSStroke.Thickness = 1.5
+
+local FPSLabel = Instance.new("TextLabel")
+FPSLabel.Size = UDim2.new(1, 0, 1, 0)
+FPSLabel.BackgroundTransparency = 1
+FPSLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+FPSLabel.Font = Enum.Font.GothamBlack
+FPSLabel.TextSize = 16 -- Kích cỡ chữ vừa đủ nhìn
+FPSLabel.Text = "FPS: --"
+FPSLabel.Parent = FPSFrame
+
+-- Chức năng Kéo Thả (Draggable) cho khung FPS
+local dragging, dragInput, dragStart, startPos
+FPSFrame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = FPSFrame.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then dragging = false end
+        end)
+    end
+end)
+FPSFrame.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then dragInput = input end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        local delta = input.Position - dragStart
+        FPSFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+
+-- Thuật toán đo FPS
+local fpsOn = false
+local frames = 0
+RunService.RenderStepped:Connect(function() frames = frames + 1 end)
+
+task.spawn(function()
+    while task.wait(1) do
+        if fpsOn then FPSLabel.Text = "FPS: " .. frames end
+        frames = 0
+    end
+end)
+
+BtnFPS.MouseButton1Click:Connect(function()
+    fpsOn = not fpsOn
+    FPSFrame.Visible = fpsOn
+    BtnFPS.Text = fpsOn and "FPS: ON" or "FPS: OFF"
+    BtnFPS.BackgroundColor3 = fpsOn and Color3.fromRGB(0, 130, 0) or Color3.fromRGB(30, 30, 30)
+end)
+
+-- Chức năng Màn đen
+local blackOn = false
+BtnBlack.MouseButton1Click:Connect(function()
+    blackOn = not blackOn
+    BlackFrame.Visible = blackOn
+    BtnBlack.Text = blackOn and "Màn Đen: ON" or "Màn Đen: OFF"
+    BtnBlack.BackgroundColor3 = blackOn and Color3.fromRGB(150, 0, 0) or Color3.fromRGB(30, 30, 30)
+    pcall(function() RunService:Set3dRenderingEnabled(not blackOn) end)
+end)
+
+-- ==========================================================
+-- PHẦN 3: XÓA SỔ MAP KHỎI TIẾN TRÌNH RAM/CPU CỰC ĐOAN
+-- ==========================================================
+task.spawn(function()
+    if setfpscap then setfpscap(60) end
+    pcall(function() settings().Rendering.QualityLevel = Enum.QualityLevel.Level01 end)
     
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 6)
+    Lighting.GlobalShadows = false
+    Lighting.FogEnd = 9e9
+    Lighting.Brightness = 0
+    Lighting:ClearAllChildren() -- Tiêu hủy tức khắc toàn bộ hiệu ứng ánh sáng
+    
+    -- Tối ưu biển
+    local Terrain = Workspace:FindFirstChildOfClass("Terrain")
+    if Terrain then
+        Terrain.WaterWaveSize = 0
+        Terrain.WaterWaveSpeed = 0
+        Terrain.WaterReflectance = 0
+        Terrain.WaterTransparency = 1
+    end
+
+    local function IsEntity(obj)
+        local current = obj.Parent
+        local depth = 0
+        while current and current ~= Workspace and depth < 3 do
+            if current:FindFirstChildOfClass("Humanoid") then return true end
+            current = current.Parent
+            depth = depth + 1
+        end
+        return false
+    end
+
+    -- THUẬT TOÁN TIÊU HỦY MỚI (DESTROY)
+    local function DeepDestroyMap(obj)
+        if not obj then return end
+        if obj:IsA("Terrain") then return end
+        if IsEntity(obj) then return end
+
+        if obj:IsA("BasePart") or obj:IsA("MeshPart") then
+            if not obj.CanCollide then
+                -- NẾU KHÔNG CÓ VA CHẠM -> TIÊU HỦY VĨNH VIỄN KHỎI BỘ NHỚ
+                pcall(function() obj:Destroy() end)
+            else
+                -- NẾU CÓ VA CHẠM -> ÉP TÀNG HÌNH & XÓA MỌI ĐỨA CON (Texture, Decal, Mesh...)
+                obj.Transparency = 1
+                obj.Material = Enum.Material.SmoothPlastic
+                obj.Reflectance = 0
+                obj.CastShadow = false
+                
+                for _, child in ipairs(obj:GetChildren()) do
+                    if not child:IsA("TouchTransmitter") then -- Giữ lại Touch để không kẹt quest/portals
+                        pcall(function() child:Destroy() end)
+                    end
+                end
+            end
+        else
+            -- Tiêu hủy vĩnh viễn các file đồ họa khác (Particle, Âm thanh map, v.v.)
+            if not obj:IsA("Humanoid") and not obj:IsA("Model") and not obj:IsA("Folder") then
+                pcall(function() obj:Destroy() end)
+            end
+        end
+    end
+
+    -- Chạy xóa mẻ (Tránh văng game do quét quá nhanh)
+    local allDescendants = Workspace:GetDescendants()
+    for i, obj in ipairs(allDescendants) do
+        DeepDestroyMap(obj)
+        if i % 300 == 0 then task.wait() end 
+    end
+
+    Workspace.DescendantAdded:Connect(DeepDestroyMap)
+end)
     corner.Parent = btn
     
     local stroke = Instance.new("UIStroke")
