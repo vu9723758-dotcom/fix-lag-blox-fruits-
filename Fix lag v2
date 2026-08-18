@@ -1,0 +1,196 @@
+-- ==============================================================================
+-- HỆ THỐNG TỐI ƯU HÓA HIỆU NĂNG & ẨN MAP (V3 - BẢN FIX UI & TỐI ƯU CPU)
+-- ==============================================================================
+
+if _G.OptimalScriptRun then return end
+_G.OptimalScriptRun = true
+
+local CoreGui = game:GetService("CoreGui")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local Lighting = game:GetService("Lighting")
+
+local Player = Players.LocalPlayer
+
+-- Xác định nơi chứa UI an toàn nhất (Hỗ trợ mọi Executor)
+local guiTarget = pcall(function() return CoreGui.Name end) and CoreGui or Player:WaitForChild("PlayerGui")
+
+-- ==========================================================
+-- PHẦN 1: KHỞI TẠO GIAO DIỆN (UI) NGAY LẬP TỨC
+-- ==========================================================
+-- 1. Màn hình đen (Tạo trước để nằm dưới cùng)
+local BlackScreenGui = Instance.new("ScreenGui")
+BlackScreenGui.Name = "PureBlackScreen"
+BlackScreenGui.DisplayOrder = 9998
+BlackScreenGui.IgnoreGuiInset = true
+BlackScreenGui.ResetOnSpawn = false
+BlackScreenGui.Parent = guiTarget
+
+local BlackFrame = Instance.new("Frame")
+BlackFrame.Size = UDim2.new(1, 0, 1, 0)
+BlackFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+BlackFrame.Visible = false
+BlackFrame.Parent = BlackScreenGui
+
+-- 2. Giao diện chứa 2 nút bấm
+local MainGui = Instance.new("ScreenGui")
+MainGui.Name = "OptimalFarmUI"
+MainGui.DisplayOrder = 9999 -- Nằm trên màn đen
+MainGui.ResetOnSpawn = false
+MainGui.Parent = guiTarget
+
+local Container = Instance.new("Frame")
+Container.Size = UDim2.new(0, 120, 0, 90)
+Container.Position = UDim2.new(1, -15, 0.5, 0)
+Container.AnchorPoint = Vector2.new(1, 0.5) -- Neo cố định mép phải, giữa màn hình
+Container.BackgroundTransparency = 1
+Container.Parent = MainGui
+
+local Layout = Instance.new("UIListLayout")
+Layout.Parent = Container
+Layout.SortOrder = Enum.SortOrder.LayoutOrder
+Layout.Padding = UDim.new(0, 15) -- Khoảng cách giữa 2 nút
+Layout.HorizontalAlignment = Enum.HorizontalAlignment.Right
+
+-- Hàm tạo nút bấm
+local function CreateBtn(text)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0, 110, 0, 36)
+    btn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 13
+    btn.Text = text
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 6)
+    corner.Parent = btn
+    
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = Color3.fromRGB(80, 80, 80)
+    stroke.Thickness = 1.2
+    stroke.Parent = btn
+    
+    btn.Parent = Container
+    return btn
+end
+
+local BtnFPS = CreateBtn("FPS: OFF")
+local BtnBlack = CreateBtn("Màn Đen: OFF")
+
+-- Nhãn hiển thị FPS ở góc màn hình
+local FPSLabel = Instance.new("TextLabel")
+FPSLabel.Size = UDim2.new(0, 100, 0, 30)
+FPSLabel.Position = UDim2.new(1, -120, 1, -40)
+FPSLabel.BackgroundTransparency = 1
+FPSLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+FPSLabel.TextStrokeTransparency = 0.2
+FPSLabel.Font = Enum.Font.GothamBlack
+FPSLabel.TextSize = 18
+FPSLabel.Text = "FPS: --"
+FPSLabel.Visible = false
+FPSLabel.Parent = MainGui
+
+-- Xử lý chức năng Nút FPS
+local fpsOn = false
+local frames = 0
+RunService.RenderStepped:Connect(function() frames = frames + 1 end)
+
+task.spawn(function()
+    while task.wait(1) do
+        if fpsOn then FPSLabel.Text = "FPS: " .. frames end
+        frames = 0
+    end
+end)
+
+BtnFPS.MouseButton1Click:Connect(function()
+    fpsOn = not fpsOn
+    FPSLabel.Visible = fpsOn
+    BtnFPS.Text = fpsOn and "FPS: ON" or "FPS: OFF"
+    BtnFPS.BackgroundColor3 = fpsOn and Color3.fromRGB(0, 130, 0) or Color3.fromRGB(30, 30, 30)
+end)
+
+-- Xử lý chức năng Nút Màn Đen
+local blackOn = false
+BtnBlack.MouseButton1Click:Connect(function()
+    blackOn = not blackOn
+    BlackFrame.Visible = blackOn
+    BtnBlack.Text = blackOn and "Màn Đen: ON" or "Màn Đen: OFF"
+    BtnBlack.BackgroundColor3 = blackOn and Color3.fromRGB(150, 0, 0) or Color3.fromRGB(30, 30, 30)
+    pcall(function() RunService:Set3dRenderingEnabled(not blackOn) end)
+end)
+
+-- ==========================================================
+-- PHẦN 2: THỰC THI TỐI ƯU HÓA NGẦM (KHÔNG GÂY LAG)
+-- ==========================================================
+task.spawn(function()
+    -- Ép FPS 60 và Cấu hình siêu thấp
+    if setfpscap then setfpscap(60) end
+    pcall(function() settings().Rendering.QualityLevel = Enum.QualityLevel.Level01 end)
+    
+    -- Xóa toàn bộ hiệu ứng ánh sáng
+    Lighting.GlobalShadows = false
+    Lighting.FogEnd = 9e9
+    Lighting.Brightness = 0
+    for _, v in pairs(Lighting:GetDescendants()) do
+        if v:IsA("PostEffect") or v:IsA("SunRaysEffect") or v:IsA("BloomEffect") or v:IsA("BlurEffect") or v:IsA("ColorCorrectionEffect") or v:IsA("DepthOfFieldEffect") then
+            pcall(function() v:Destroy() end)
+        end
+    end
+
+    -- Tối ưu Nước biển (Loại bỏ gợn sóng và phản chiếu)
+    local Terrain = Workspace:FindFirstChildOfClass("Terrain")
+    if Terrain then
+        Terrain.WaterWaveSize = 0
+        Terrain.WaterWaveSpeed = 0
+        Terrain.WaterReflectance = 0
+    end
+
+    -- Từ điển các vật thể gây lag cần xóa
+    local badClasses = {
+        ["Decal"] = true, ["Texture"] = true, ["ParticleEmitter"] = true, 
+        ["Trail"] = true, ["Fire"] = true, ["Smoke"] = true, 
+        ["Sparkles"] = true, ["Explosion"] = true, ["PointLight"] = true, 
+        ["SpotLight"] = true, ["SurfaceLight"] = true, ["SpecialMesh"] = true
+    }
+
+    -- Thuật toán kiểm tra Humanoid siêu tốc (Giới hạn 3 lớp để tránh tốn CPU)
+    local function IsEntity(obj)
+        local current = obj.Parent
+        local depth = 0
+        while current and current ~= Workspace and depth < 3 do
+            if current:FindFirstChildOfClass("Humanoid") then return true end
+            current = current.Parent
+            depth = depth + 1
+        end
+        return false
+    end
+
+    -- Hàm xử lý tàng hình 100% Map
+    local function OptimizePart(obj)
+        if not obj then return end
+        if obj:IsA("Terrain") then return end -- Giữ lại nước biển
+        if IsEntity(obj) then return end -- Giữ lại Quái, Boss, Người chơi
+
+        if obj:IsA("BasePart") then
+            obj.Transparency = 1 -- 100% tàng hình
+            obj.Material = Enum.Material.SmoothPlastic
+            obj.Reflectance = 0
+            obj.CastShadow = false
+        elseif badClasses[obj.ClassName] then
+            pcall(function() obj:Destroy() end)
+        end
+    end
+
+    -- Quét toàn bộ Map từ từ để tránh đứng game (Chia mẻ)
+    local allDescendants = Workspace:GetDescendants()
+    for i, obj in ipairs(allDescendants) do
+        OptimizePart(obj)
+        -- Cứ xử lý 500 vật thể thì nghỉ 1 nhịp để tránh nghẽn luồng UI
+        if i % 500 == 0 then task.wait() end 
+    end
+
+    -- Tự động tối ưu các vật thể mới xuất hiện (Skill, quái mới spawn...)
+    Workspace.DescendantAdded:Connect(OptimizePart)
+end)
